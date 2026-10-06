@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .embed import DEFAULT_MODEL
 from .extract import DEFAULT_DB, list_libraries, open_snapshot
+from .labels import DEFAULT_URL, LabellingError
 from .pipeline import MAX_THEMES, Options, run
 
 
@@ -46,6 +47,9 @@ def main(argv: list[str] | None = None) -> None:
     build.add_argument("--bulk-threshold", type=int, default=100, metavar="N",
                        help="un jour compte comme import en masse à partir de N ajouts (défaut : %(default)s)")
     build.add_argument("--refit", action="store_true", help="recalculer les thèmes au lieu de reprendre les précédents")
+    build.add_argument("--label-model", metavar="MODÈLE",
+                       help="faire nommer les thèmes par un modèle de langue local servi par Ollama, par exemple qwen3:8b")
+    build.add_argument("--ollama-url", default=DEFAULT_URL, metavar="URL", help="adresse d’Ollama (défaut : %(default)s)")
     build.add_argument("--name", metavar="TEXTE", help="nom affiché pour la bibliothèque, par exemple « Bibliothèque Zotero de … »")
     build.add_argument("--web", type=Path, metavar="DOSSIER",
                        help="écrire aussi dans DOSSIER une page publiable en ligne : sans liens vers Zotero, "
@@ -69,9 +73,10 @@ def main(argv: list[str] | None = None) -> None:
                 n_subthemes=args.subthemes, model_name=args.model, refit=args.refit,
                 exclude=args.exclude_collection, bulk_threshold=args.bulk_threshold,
                 name=args.name, web=args.web, web_references=args.web_references,
+                label_model=args.label_model, ollama_url=args.ollama_url,
             )
         )
-    except (FileNotFoundError, LookupError) as error:
+    except (FileNotFoundError, LookupError, LabellingError) as error:
         raise SystemExit(str(error)) from None
     print(f"\nPage générée : {page.resolve()}")
     print(f"Libellés modifiables : {(args.out / 'themes.json').resolve()}")

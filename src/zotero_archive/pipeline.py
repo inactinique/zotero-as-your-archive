@@ -14,6 +14,7 @@ from urllib.parse import quote
 
 import numpy as np
 
+from . import labels as labelling
 from . import themes as thematic
 from .embed import DEFAULT_MODEL, embed_texts
 from .extract import DEFAULT_DB, Item, Library, find_library, load_items, open_snapshot, select_link
@@ -72,6 +73,15 @@ class Options:
     name: str | None = None  # display name of the library
     web: Path | None = None  # folder for the publishable page
     web_references: bool = False  # list individual references on that page
+    label_model: str | None = None  # Ollama model asked to name the themes
+    ollama_url: str = labelling.DEFAULT_URL
+
+
+@dataclass
+class Label:
+    text: str  # shown on the page: the automatic proposal, unless the user rewrote it
+    auto: str  # the automatic proposal
+    source: str  # where the proposal comes from: "keywords" or "ollama:<model>"
 
 
 def run(opts: Options) -> Path:
@@ -79,6 +89,8 @@ def run(opts: Options) -> Path:
 
     With ``opts.web``, a second page meant for publication is written there.
     """
+    if opts.label_model:
+        labelling.check(opts.label_model, opts.ollama_url)
     print("Lecture de la base Zotero…")
     with open_snapshot(opts.db) as con:
         library = find_library(con, opts.library)
@@ -112,10 +124,10 @@ def run(opts: Options) -> Path:
         embeddings, sub, model,
         [it.text for it in items], [it.collections for it in items], [it.tags for it in items],
     )
-    labels = _labels(opts.out / "themes.json", themes, subthemes, keep=not fitted)
+    labels = _labels(opts.out / "themes.json", themes, subthemes, items, keep=not fitted, opts=opts)
     _write_themes(opts.out / "themes.json", themes, subthemes, labels, items)
     for t in themes:
-        print(f"  {t.id + 1}. {labels['theme', t.id]} ({t.size})")
+        print(f"  {t.id + 1}. {labels['theme', t.id].text} ({t.size})")
 
     page = opts.out / "index.html"
     described = (library, items, sub, themes, subthemes, labels, opts)
@@ -183,31 +195,79 @@ def _load_or_fit(path: Path, items: list[Item], embeddings: np.ndarray, params: 
     return model, sub, fitted
 
 
-def _labels(path: Path, themes, subthemes, keep: bool) -> dict[tuple[str, int], str]:
-    """Automatic labels, overridden by the ones the user wrote in themes.json."""
-    edited: dict[tuple[str, int], str] = {}
+def _labels(
+    path: Path, themes, subthemes, items: list[Item], keep: bool, opts: Options
+) -> dict[tuple[str, int], Label]:
+    """A label for every theme and sub-theme.
+
+    The automatic proposal is the group's most distinctive words, or a name
+    given by a local language model when ``opts.label_model`` is set. Names
+    already obtained from a model are reused as long as the themes are, so the
+    model is only called for groups it has not named yet. Whatever the
+    proposal, a label rewritten by the user in themes.json wins.
+    """
+    previous: dict[tuple[str, int], dict] = {}
     if path.is_file():
         if keep:
-            previous = json.loads(path.read_text(encoding="utf-8"))
-            for t in previous.get("themes", []):
+            for t in json.loads(path.read_text(encoding="utf-8")).get("themes", []):
                 for kind, entry in [("theme", t)] + [("sub", s) for s in t.get("subthemes", [])]:
-                    if entry.get("label") and entry["label"] != entry.get("auto_label"):
-                        edited[kind, entry["id"]] = entry["label"]
+                    previous[kind, entry["id"]] = entry
         else:
             backup = path.with_name("themes.json.bak")
             shutil.copy2(path, backup)
             print(f"  ancien fichier de libellés conservé dans {backup}")
-    labels = {("theme", t.id): t.auto_label for t in themes}
-    labels |= {("sub", s.id): s.auto_label for s in subthemes}
-    return labels | edited
+
+    wanted = f"ollama:{opts.label_model}" if opts.label_model else None
+    groups = [("theme", t) for t in themes] + [("sub", s) for s in subthemes]
+    proposals: dict[tuple[str, int], tuple[str, str]] = {}
+    unnamed = []
+    for kind, group in groups:
+        old = previous.get((kind, group.id), {})
+        source = old.get("label_source", "keywords")
+        if wanted and source != wanted:
+            unnamed.append((kind, group))
+        elif source.startswith("ollama:") and old.get("auto_label"):
+            proposals[kind, group.id] = (old["auto_label"], source)
+        else:
+            proposals[kind, group.id] = (group.auto_label, "keywords")
+
+    for done, (kind, group) in enumerate(unnamed, start=1):
+        print(f"\r  libellés proposés par {opts.label_model} : {done}/{len(unnamed)}", end="", flush=True)
+        if kind == "theme":
+            context = dict(
+                parts=[subthemes[s] for s in group.children],
+                others=[t for t in themes if t is not group],
+            )
+        else:
+            parent = themes[group.parent]
+            context = dict(
+                parent=parent,
+                others=[subthemes[s] for s in parent.children if s != group.id],
+            )
+        titles = [items[i].title for i in group.exemplars]
+        name = labelling.propose(
+            opts.label_model, labelling.describe(group, titles, **context), opts.ollama_url
+        )
+        # Without a usable answer, keep the words; the model is asked again next time.
+        proposals[kind, group.id] = (name, wanted) if name else (group.auto_label, "keywords")
+    if unnamed:
+        print()
+
+    labels = {}
+    for key, (auto, source) in proposals.items():
+        old = previous.get(key, {})
+        edited = bool(old.get("label")) and old["label"] != old.get("auto_label")
+        labels[key] = Label(text=old["label"] if edited else auto, auto=auto, source=source)
+    return labels
 
 
 def _write_themes(path: Path, themes, subthemes, labels, items: list[Item]) -> None:
     def entry(kind: str, group) -> dict:
         return {
             "id": group.id,
-            "label": labels[kind, group.id],
-            "auto_label": group.auto_label,
+            "label": labels[kind, group.id].text,
+            "auto_label": labels[kind, group.id].auto,
+            "label_source": labels[kind, group.id].source,
             "size": group.size,
             "keywords": group.keywords,
             "collections": [f"{name} ({n})" for name, n in group.collections],
@@ -218,7 +278,8 @@ def _write_themes(path: Path, themes, subthemes, labels, items: list[Item]) -> N
         "aide": (
             "Pour renommer un thème ou un sous-thème, modifiez son champ « label » puis relancez "
             "« zotero-archive build ». Vos libellés sont conservés tant que les thèmes ne sont pas "
-            "recalculés (option --refit ou changement de paramètres)."
+            "recalculés (option --refit ou changement de paramètres). « auto_label » est la "
+            "proposition automatique et « label_source » son origine : n’y touchez pas."
         ),
         "themes": [
             entry("theme", t) | {"subthemes": [entry("sub", subthemes[s]) for s in t.children]}
@@ -243,6 +304,7 @@ def _payload(
     bulk_days = {day: n for day, n in per_day.items() if n >= opts.bulk_threshold}
     types = sorted({it.item_type for it in items})
     type_index = {t: i for i, t in enumerate(types)}
+    named_by = sorted({lab.source.split(":", 1)[1] for lab in labels.values() if lab.source.startswith("ollama:")})
 
     def row(it: Item, k: int) -> list:
         day = it.date_added[:10]
@@ -256,6 +318,7 @@ def _payload(
         "library": opts.name or library.name,
         "generated": date.today().isoformat(),
         "model": opts.model_name.split("/")[-1],
+        "labelModel": ", ".join(named_by),
         "project": PROJECT_URL,
         "web": web,
         "references": references,
@@ -267,7 +330,7 @@ def _payload(
         "themes": [
             {
                 "id": t.id,
-                "label": labels["theme", t.id],
+                "label": labels["theme", t.id].text,
                 "keywords": t.keywords,
                 "collections": [] if web else t.collections,
                 "subs": t.children,
@@ -278,7 +341,7 @@ def _payload(
             {
                 "id": s.id,
                 "theme": s.parent,
-                "label": labels["sub", s.id],
+                "label": labels["sub", s.id].text,
                 "keywords": s.keywords,
                 "collections": [] if web else s.collections,
             }

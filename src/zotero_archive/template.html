@@ -628,7 +628,10 @@ footer a { color: inherit; }
   $('#lede').textContent = `${D.library} : ${plural(ITEMS.length, 'référence ajoutée', 'références ajoutées')} entre le ${longDate(ITEMS[0].date)} et le ${longDate(ITEMS[ITEMS.length - 1].date)}. `
     + `Chaque référence est rattachée à l’un des ${D.themes.length} thèmes calculés à partir des titres et des résumés. Lue dans l’ordre des dates d’ajout, la bibliothèque devient une archive de ce qui a retenu l’attention, année après année.`;
   $('#method').textContent = `Méthode : les titres et résumés sont transformés en vecteurs par un modèle de langue multilingue (${D.model}), regroupés en ${D.subthemes.length} sous-thèmes, eux-mêmes fusionnés en ${D.themes.length} thèmes. `
-    + 'Par défaut, les libellés sont les mots qui distinguent le plus chaque groupe' + (D.web ? '. ' : ' ; ils peuvent être remplacés dans le fichier themes.json. ')
+    + (D.labelModel
+      ? `Les libellés ont été proposés par un modèle de langue exécuté en local (${D.labelModel}), à partir des mots et des titres les plus caractéristiques de chaque groupe`
+      : 'Par défaut, les libellés sont les mots qui distinguent le plus chaque groupe')
+    + (D.web ? '. ' : ' ; ils peuvent être remplacés dans le fichier themes.json. ')
     + 'Ces regroupements sont une proposition de lecture, pas un classement définitif. '
     + `Page générée le ${longDate(D.generated)} avec `;
   $('#method').append(h('a', { href: D.project, text: 'zotero-as-your-archive' }), '.');

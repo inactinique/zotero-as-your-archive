@@ -14,9 +14,10 @@ an interactive page showing how the themes follow one another over the years.
 Example, on a library started in 2008: <https://inactinique.net/zotero-archive/>
 
 Everything runs on your computer. The Zotero database is copied and the copy is
-read; your library is never modified. The language model runs locally, and no
-data about your library leaves your machine. The network is only used to
-install the software and, once, to download the model.
+read; your library is never modified. The model that represents your references
+runs locally, and so does the optional one that names the themes: no data about
+your library leaves your machine. The network is only used to install the
+software and to download the models.
 
 > The generated page and the command-line messages are in French for now.
 
@@ -29,7 +30,11 @@ install the software and, once, to download the model.
 - **[uv](https://docs.astral.sh/uv/)**, which installs Python and the
   dependencies for you, and **git**.
 - About **2 GB of free disk space** (1 GB for the Python environment, 1 GB for
-  the model) and an internet connection for the installation and the first run.
+  the model that represents the references) and an internet connection for the
+  installation and the first run.
+- Optionally, **[Ollama](https://ollama.com)** with a model of your choice, to
+  have the themes named by a local language model (step 5). Allow a few more
+  gigabytes for that model.
 
 Developed and tested on macOS (Apple Silicon) with Zotero 10. Nothing in the
 code is specific to macOS, but Linux and Windows have not been tested.
@@ -71,8 +76,7 @@ On first use, uv downloads Python 3.12 and the dependencies. The first build
 then downloads the language model (about 1 GB) and computes a representation of
 every reference: for 7,400 references on a recent laptop, the computation took
 about a minute and a half, on top of the download. Later builds only process
-new references and take about fifteen seconds. Zotero can stay open in the
-meantime.
+new references and take about a second. Zotero can stay open in the meantime.
 
 The `output/` folder then contains:
 
@@ -82,10 +86,29 @@ The `output/` folder then contains:
 `output/` is ignored by git, because these files contain your library.
 
 **5. Name the themes.** The automatic labels are the three words that best
-distinguish each group, and they are often rough. Open `output/themes.json`:
-for each theme and sub-theme it lists the distinctive words, the Zotero
-collections most present in it and a few typical references. Edit the `label`
-fields, then run the build command again.
+distinguish each group, and they are often rough. There are two ways to improve
+them, and they combine.
+
+*Let a local language model propose names.* If [Ollama](https://ollama.com) is
+running on your computer, add `--label-model` with the name of a model you have
+pulled:
+
+```sh
+uv run zotero-archive build --label-model qwen3:8b
+```
+
+For each theme and sub-theme, the model is given the distinctive words, the
+Zotero collections most present and a few typical titles, and answers with a
+short name in French. It runs on your machine, so your library still does not
+leave it. With `qwen3:8b` (5 GB) on a recent laptop, naming 48 groups took about
+a minute. The names are stored in `themes.json` and reused by later builds: you
+only need the option again after recomputing the themes, or to try another
+model. Read the proposals: a small model is right most of the time, not always.
+
+*Rename by hand.* Open `output/themes.json`: for each theme and sub-theme it
+lists the distinctive words, the Zotero collections most present in it and a few
+typical references. Edit the `label` fields, then run the build command again.
+A label you wrote is never replaced by the model's.
 
 **6. Adjust if needed.** Useful options are `--themes` (2 to 8),
 `--subthemes`, and `--exclude-collection TEXT` to leave out a collection that
@@ -167,6 +190,8 @@ the published page, run the same build command again, then commit and push.
 | `--bulk-threshold N` | number of additions from which a day counts as a bulk import (default: 100) |
 | `--model NAME` | another [sentence-transformers](https://www.sbert.net/) model |
 | `--refit` | recompute the themes instead of reusing the previous ones |
+| `--label-model MODEL` | have the themes named by a language model served by Ollama, e.g. `qwen3:8b` |
+| `--ollama-url URL` | address of Ollama (default: `http://localhost:11434`); if you point it at another machine, the descriptions of your themes are sent there |
 | `--name TEXT` | name displayed for the library |
 | `--web FOLDER` | also write a page for publication into FOLDER |
 | `--web-references` | with `--web`: publish the list of references too |
@@ -185,7 +210,9 @@ the published page, run the same build command again, then commit and push.
    k-means cuts sub-themes in that space, and Ward's criterion merges them into
    themes. The distinctive words come from a TF-IDF computed per group. Themes
    are numbered by the median date at which their references were added.
-4. **Page** (`template.html`): the data are embedded in one HTML file.
+4. **Names** (`labels.py`, optional): a language model served by Ollama names
+   each group from its distinctive words and a few typical titles.
+5. **Page** (`template.html`): the data are embedded in one HTML file.
 
 ### Limits
 
@@ -200,6 +227,9 @@ the published page, run the same build command again, then commit and push.
   library, not a result.
 - Eight themes at most: beyond that, colours can no longer be told apart
   reliably. Sub-themes carry the detail.
+- Names proposed by a language model are suggestions as well. They are asked
+  for in French only, a small model sometimes gets a group wrong, and two
+  groups may receive the same name.
 
 ### Development
 
@@ -224,10 +254,10 @@ thèmes se succèdent au fil des années.
 Exemple, sur une bibliothèque ouverte en 2008 : <https://inactinique.net/zotero-archive/>
 
 Tout se passe sur votre ordinateur. La base Zotero est copiée et c'est la copie
-qui est lue ; votre bibliothèque n'est jamais modifiée. Le modèle de langue
-tourne en local, et aucune donnée sur votre bibliothèque ne quitte votre
-machine. Le réseau ne sert qu'à installer le logiciel et, une fois, à
-télécharger le modèle.
+qui est lue ; votre bibliothèque n'est jamais modifiée. Le modèle qui représente
+vos références tourne en local, tout comme celui, optionnel, qui nomme les
+thèmes : aucune donnée sur votre bibliothèque ne quitte votre machine. Le réseau
+ne sert qu'à installer le logiciel et à télécharger les modèles.
 
 ### Ce qu'il vous faut
 
@@ -239,8 +269,11 @@ télécharger le modèle.
 - **[uv](https://docs.astral.sh/uv/)**, qui installe Python et les dépendances
   à votre place, et **git**.
 - Environ **2 Go d'espace disque** (1 Go pour l'environnement Python, 1 Go pour
-  le modèle) et une connexion internet pour l'installation et la première
-  exécution.
+  le modèle qui représente les références) et une connexion internet pour
+  l'installation et la première exécution.
+- En option, **[Ollama](https://ollama.com)** et un modèle de votre choix, pour
+  faire nommer les thèmes par un modèle de langue local (étape 5). Prévoyez
+  quelques gigaoctets de plus pour ce modèle.
 
 Développé et testé sous macOS (Apple Silicon) avec Zotero 10. Rien dans le code
 n'est propre à macOS, mais Linux et Windows n'ont pas été testés.
@@ -284,8 +317,8 @@ première génération télécharge ensuite le modèle de langue (environ 1 Go) 
 calcule une représentation de chaque référence : pour 7 400 références sur un
 portable récent, le calcul a pris environ une minute et demie, en plus du
 téléchargement. Les générations suivantes ne traitent que les nouvelles
-références et durent une quinzaine de secondes. Zotero peut rester ouvert
-pendant ce temps.
+références et durent environ une seconde. Zotero peut rester ouvert pendant ce
+temps.
 
 Le dossier `output/` contient alors :
 
@@ -295,10 +328,31 @@ Le dossier `output/` contient alors :
 `output/` est ignoré par git, car ces fichiers contiennent votre bibliothèque.
 
 **5. Nommez les thèmes.** Les libellés automatiques sont les trois mots qui
-distinguent le mieux chaque groupe, et ils sont souvent approximatifs. Ouvrez
-`output/themes.json` : pour chaque thème et sous-thème, il donne les mots
-caractéristiques, les collections Zotero les plus présentes et quelques
-références typiques. Modifiez les champs `label`, puis relancez la commande.
+distinguent le mieux chaque groupe, et ils sont souvent approximatifs. Il y a
+deux façons de les améliorer, qui se combinent.
+
+*Laisser un modèle de langue local proposer des noms.* Si
+[Ollama](https://ollama.com) tourne sur votre ordinateur, ajoutez
+`--label-model` suivi du nom d'un modèle que vous avez installé :
+
+```sh
+uv run zotero-archive build --label-model qwen3:8b
+```
+
+Pour chaque thème et sous-thème, le modèle reçoit les mots caractéristiques, les
+collections Zotero les plus présentes et quelques titres typiques, et répond par
+un nom court en français. Il s'exécute sur votre machine : votre bibliothèque ne
+la quitte toujours pas. Avec `qwen3:8b` (5 Go) sur un portable récent, nommer 48
+groupes a pris environ une minute. Les noms sont enregistrés dans `themes.json`
+et repris par les générations suivantes : l'option ne redevient nécessaire
+qu'après un recalcul des thèmes, ou pour essayer un autre modèle. Relisez les
+propositions : un petit modèle a raison la plupart du temps, pas toujours.
+
+*Renommer à la main.* Ouvrez `output/themes.json` : pour chaque thème et
+sous-thème, il donne les mots caractéristiques, les collections Zotero les plus
+présentes et quelques références typiques. Modifiez les champs `label`, puis
+relancez la commande. Un libellé que vous avez écrit n'est jamais remplacé par
+celui du modèle.
 
 **6. Ajustez si nécessaire.** Les options utiles sont `--themes` (de 2 à 8),
 `--subthemes`, et `--exclude-collection TEXTE` pour écarter une collection qui
@@ -386,6 +440,8 @@ la page publiée, relancez la même commande, puis commit et push.
 | `--bulk-threshold N` | nombre d'ajouts à partir duquel un jour compte comme import en masse (défaut : 100) |
 | `--model NOM` | autre modèle [sentence-transformers](https://www.sbert.net/) |
 | `--refit` | recalculer les thèmes au lieu de reprendre les précédents |
+| `--label-model MODÈLE` | faire nommer les thèmes par un modèle de langue servi par Ollama, par exemple `qwen3:8b` |
+| `--ollama-url URL` | adresse d'Ollama (défaut : `http://localhost:11434`) ; si elle désigne une autre machine, les descriptions de vos thèmes y sont envoyées |
 | `--name TEXTE` | nom affiché pour la bibliothèque |
 | `--web DOSSIER` | écrire aussi dans DOSSIER une page destinée à la publication |
 | `--web-references` | avec `--web` : publier aussi la liste des références |
@@ -404,7 +460,10 @@ la page publiée, relancez la même commande, puis commit et push.
    k-means y découpe les sous-thèmes, puis le critère de Ward les fusionne en
    thèmes. Les mots caractéristiques viennent d'un TF-IDF calculé par groupe.
    Les thèmes sont numérotés selon la date médiane d'ajout de leurs références.
-4. **Page** (`template.html`) : les données sont insérées dans un seul fichier
+4. **Noms** (`labels.py`, en option) : un modèle de langue servi par Ollama
+   nomme chaque groupe à partir de ses mots caractéristiques et de quelques
+   titres typiques.
+5. **Page** (`template.html`) : les données sont insérées dans un seul fichier
    HTML.
 
 ### Limites
@@ -420,6 +479,9 @@ la page publiée, relancez la même commande, puis commit et push.
   bibliothèque, pas un résultat.
 - Huit thèmes au maximum : au-delà, les couleurs ne se distinguent plus de façon
   fiable. Le détail passe par les sous-thèmes.
+- Les noms proposés par un modèle de langue sont eux aussi des suggestions. Ils
+  sont demandés en français uniquement, un petit modèle se trompe parfois sur un
+  groupe, et deux groupes peuvent recevoir le même nom.
 
 ### Développement
 

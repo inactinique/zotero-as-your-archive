@@ -1,7 +1,7 @@
 """What goes into the private page and into the page meant for the web."""
 
 from zotero_archive.extract import Item, Library
-from zotero_archive.pipeline import Options, _payload, _public_link
+from zotero_archive.pipeline import Label, Options, _payload, _public_link
 from zotero_archive.themes import Group
 
 
@@ -27,7 +27,10 @@ def payload(**options) -> dict:
     group = dict(size=2, keywords=["monnaie"], exemplars=[0], collections=[("Thèse", 2)], tags=[])
     themes = [Group(id=0, children=[0], **group)]
     subthemes = [Group(id=0, parent=0, **group)]
-    labels = {("theme", 0): "Monnaie", ("sub", 0): "Banques centrales"}
+    labels = {
+        ("theme", 0): Label("Monnaie", "Monnaie", "ollama:test"),
+        ("sub", 0): Label("Banques centrales", "monnaie", "keywords"),
+    }
     library = Library(id=1, kind="user", name="Ma bibliothèque", group_id=None, n_items=2)
     return _payload(library, items, [0, 0], themes, subthemes, labels, Options(bulk_threshold=2, **options), web=web)
 
@@ -35,6 +38,8 @@ def payload(**options) -> dict:
 def test_private_page_opens_references_in_zotero():
     data = payload()
     assert data["linkPrefix"] == "zotero://select/library/items/"
+    assert (data["themes"][0]["label"], data["subthemes"][0]["label"]) == ("Monnaie", "Banques centrales")
+    assert data["labelModel"] == "test"
     assert data["items"][0][:4] == ["ABCD1234", "Un titre", "Schacht", 1936]
     assert data["themes"][0]["collections"] == [("Thèse", 2)]
     assert data["bulkDays"] == [("2012-03-01", 2)]
