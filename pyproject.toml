@@ -1,0 +1,33 @@
+[project]
+name = "zotero-archive"
+version = "0.1.0"
+description = "Lire une bibliothèque Zotero comme l'archive des intérêts intellectuels de son propriétaire"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Frédéric Clavert", email = "frederic.clavert@uni.lu" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.5.3",
+    "scikit-learn>=1.9.1",
+    "sentence-transformers>=6.1.0",
+    "stopwordsiso>=0.7.1",
+    "umap-learn>=0.5.12",
+]
+
+[project.urls]
+Repository = "https://github.com/inactinique/zotero-as-your-archive"
+
+[project.scripts]
+zotero-archive = "zotero_archive:main"
+
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

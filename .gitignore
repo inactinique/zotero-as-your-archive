@@ -1,0 +1,11 @@
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+dist/
+
+# Résultats et caches : ils contiennent le contenu de votre bibliothèque
+output/
+*.sqlite
+
+.DS_Store
