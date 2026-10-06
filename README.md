@@ -69,9 +69,10 @@ uv run zotero-archive build --open
 
 On first use, uv downloads Python 3.12 and the dependencies. The first build
 then downloads the language model (about 1 GB) and computes a representation of
-every reference: for 7,400 references on a recent laptop, this took about six
-minutes, download included. Later builds only process new references and take
-about fifteen seconds. Zotero can stay open in the meantime.
+every reference: for 7,400 references on a recent laptop, the computation took
+about a minute and a half, on top of the download. Later builds only process
+new references and take about fifteen seconds. Zotero can stay open in the
+meantime.
 
 The `output/` folder then contains:
 
@@ -281,9 +282,10 @@ uv run zotero-archive build --open
 À la première utilisation, uv télécharge Python 3.12 et les dépendances. La
 première génération télécharge ensuite le modèle de langue (environ 1 Go) et
 calcule une représentation de chaque référence : pour 7 400 références sur un
-portable récent, cela a pris environ six minutes, téléchargement compris. Les
-générations suivantes ne traitent que les nouvelles références et durent une
-quinzaine de secondes. Zotero peut rester ouvert pendant ce temps.
+portable récent, le calcul a pris environ une minute et demie, en plus du
+téléchargement. Les générations suivantes ne traitent que les nouvelles
+références et durent une quinzaine de secondes. Zotero peut rester ouvert
+pendant ce temps.
 
 Le dossier `output/` contient alors :
 
