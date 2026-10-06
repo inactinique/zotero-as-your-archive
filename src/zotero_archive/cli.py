@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .embed import DEFAULT_MODEL
 from .extract import DEFAULT_DB, list_libraries, open_snapshot
-from .labels import DEFAULT_URL, LabellingError
+from .labels import DEFAULT_LANGUAGE, DEFAULT_URL, LANGUAGES, LabellingError, language_key
 from .pipeline import MAX_THEMES, Options, run
 
 
@@ -49,6 +49,9 @@ def main(argv: list[str] | None = None) -> None:
     build.add_argument("--refit", action="store_true", help="recalculer les thèmes au lieu de reprendre les précédents")
     build.add_argument("--label-model", metavar="MODÈLE",
                        help="faire nommer les thèmes par un modèle de langue local servi par Ollama, par exemple qwen3:8b")
+    build.add_argument("--label-language", type=language_key, metavar="LANGUE",
+                       help=f"avec --label-model : langue des noms proposés, par son code ({', '.join(LANGUAGES)}) "
+                            f"ou son nom (défaut : {DEFAULT_LANGUAGE})")
     build.add_argument("--ollama-url", default=DEFAULT_URL, metavar="URL", help="adresse d’Ollama (défaut : %(default)s)")
     build.add_argument("--name", metavar="TEXTE", help="nom affiché pour la bibliothèque, par exemple « Bibliothèque Zotero de … »")
     build.add_argument("--web", type=Path, metavar="DOSSIER",
@@ -61,6 +64,8 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.command == "build" and args.web_references and not args.web:
         parser.error("--web-references s’emploie avec --web")
+    if args.command == "build" and args.label_language and not args.label_model:
+        parser.error("--label-language s’emploie avec --label-model")
     try:
         if args.command == "libraries":
             with open_snapshot(args.db) as con:
@@ -74,6 +79,7 @@ def main(argv: list[str] | None = None) -> None:
                 exclude=args.exclude_collection, bulk_threshold=args.bulk_threshold,
                 name=args.name, web=args.web, web_references=args.web_references,
                 label_model=args.label_model, ollama_url=args.ollama_url,
+                label_language=args.label_language or DEFAULT_LANGUAGE,
             )
         )
     except (FileNotFoundError, LookupError, LabellingError) as error:

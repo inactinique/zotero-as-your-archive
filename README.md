@@ -19,7 +19,8 @@ runs locally, and so does the optional one that names the themes: no data about
 your library leaves your machine. The network is only used to install the
 software and to download the models.
 
-> The generated page and the command-line messages are in French for now.
+> The generated page and the command-line messages are in French for now. The
+> names of the themes can be requested in another language (step 5).
 
 ### What you need
 
@@ -99,11 +100,21 @@ uv run zotero-archive build --label-model qwen3:8b
 
 For each theme and sub-theme, the model is given the distinctive words, the
 Zotero collections most present and a few typical titles, and answers with a
-short name in French. It runs on your machine, so your library still does not
-leave it. With `qwen3:8b` (5 GB) on a recent laptop, naming 48 groups took about
-a minute. The names are stored in `themes.json` and reused by later builds: you
-only need the option again after recomputing the themes, or to try another
-model. Read the proposals: a small model is right most of the time, not always.
+short name. It runs on your machine, so your library still does not leave it.
+With `qwen3:8b` (5 GB) on a recent laptop, naming 48 groups took about a minute.
+
+The names are in French by default. For another language, add
+`--label-language` with a code (`fr`, `en`, `de`, `es`, `it`, `nl`, `pt`) or the
+name of any other language:
+
+```sh
+uv run zotero-archive build --label-model qwen3:8b --label-language en
+```
+
+The names are stored in `themes.json` and reused by later builds: you only need
+these options again after recomputing the themes, to try another model, or to
+change language. Read the proposals: a small model is right most of the time,
+not always.
 
 *Rename by hand.* Open `output/themes.json`: for each theme and sub-theme it
 lists the distinctive words, the Zotero collections most present in it and a few
@@ -191,6 +202,7 @@ the published page, run the same build command again, then commit and push.
 | `--model NAME` | another [sentence-transformers](https://www.sbert.net/) model |
 | `--refit` | recompute the themes instead of reusing the previous ones |
 | `--label-model MODEL` | have the themes named by a language model served by Ollama, e.g. `qwen3:8b` |
+| `--label-language LANG` | with `--label-model`: language of the proposed names, as a code (`fr`, `en`, `de`, `es`, `it`, `nl`, `pt`) or a language name (default: `fr`) |
 | `--ollama-url URL` | address of Ollama (default: `http://localhost:11434`); if you point it at another machine, the descriptions of your themes are sent there |
 | `--name TEXT` | name displayed for the library |
 | `--web FOLDER` | also write a page for publication into FOLDER |
@@ -227,9 +239,9 @@ the published page, run the same build command again, then commit and push.
   library, not a result.
 - Eight themes at most: beyond that, colours can no longer be told apart
   reliably. Sub-themes carry the detail.
-- Names proposed by a language model are suggestions as well. They are asked
-  for in French only, a small model sometimes gets a group wrong, and two
-  groups may receive the same name.
+- Names proposed by a language model are suggestions as well. A small model
+  sometimes gets a group wrong, may give two groups the same name, and writes
+  widely used languages better than others.
 
 ### Development
 
@@ -341,11 +353,21 @@ uv run zotero-archive build --label-model qwen3:8b
 
 Pour chaque thème et sous-thème, le modèle reçoit les mots caractéristiques, les
 collections Zotero les plus présentes et quelques titres typiques, et répond par
-un nom court en français. Il s'exécute sur votre machine : votre bibliothèque ne
-la quitte toujours pas. Avec `qwen3:8b` (5 Go) sur un portable récent, nommer 48
-groupes a pris environ une minute. Les noms sont enregistrés dans `themes.json`
-et repris par les générations suivantes : l'option ne redevient nécessaire
-qu'après un recalcul des thèmes, ou pour essayer un autre modèle. Relisez les
+un nom court. Il s'exécute sur votre machine : votre bibliothèque ne la quitte
+toujours pas. Avec `qwen3:8b` (5 Go) sur un portable récent, nommer 48 groupes a
+pris environ une minute.
+
+Les noms sont en français par défaut. Pour une autre langue, ajoutez
+`--label-language` suivi d'un code (`fr`, `en`, `de`, `es`, `it`, `nl`, `pt`) ou
+du nom de n'importe quelle autre langue :
+
+```sh
+uv run zotero-archive build --label-model qwen3:8b --label-language en
+```
+
+Les noms sont enregistrés dans `themes.json` et repris par les générations
+suivantes : ces options ne redeviennent nécessaires qu'après un recalcul des
+thèmes, pour essayer un autre modèle ou pour changer de langue. Relisez les
 propositions : un petit modèle a raison la plupart du temps, pas toujours.
 
 *Renommer à la main.* Ouvrez `output/themes.json` : pour chaque thème et
@@ -441,6 +463,7 @@ la page publiée, relancez la même commande, puis commit et push.
 | `--model NOM` | autre modèle [sentence-transformers](https://www.sbert.net/) |
 | `--refit` | recalculer les thèmes au lieu de reprendre les précédents |
 | `--label-model MODÈLE` | faire nommer les thèmes par un modèle de langue servi par Ollama, par exemple `qwen3:8b` |
+| `--label-language LANGUE` | avec `--label-model` : langue des noms proposés, par son code (`fr`, `en`, `de`, `es`, `it`, `nl`, `pt`) ou son nom (défaut : `fr`) |
 | `--ollama-url URL` | adresse d'Ollama (défaut : `http://localhost:11434`) ; si elle désigne une autre machine, les descriptions de vos thèmes y sont envoyées |
 | `--name TEXTE` | nom affiché pour la bibliothèque |
 | `--web DOSSIER` | écrire aussi dans DOSSIER une page destinée à la publication |
@@ -479,9 +502,9 @@ la page publiée, relancez la même commande, puis commit et push.
   bibliothèque, pas un résultat.
 - Huit thèmes au maximum : au-delà, les couleurs ne se distinguent plus de façon
   fiable. Le détail passe par les sous-thèmes.
-- Les noms proposés par un modèle de langue sont eux aussi des suggestions. Ils
-  sont demandés en français uniquement, un petit modèle se trompe parfois sur un
-  groupe, et deux groupes peuvent recevoir le même nom.
+- Les noms proposés par un modèle de langue sont eux aussi des suggestions. Un
+  petit modèle se trompe parfois sur un groupe, peut donner le même nom à deux
+  groupes, et écrit mieux les langues les plus répandues que les autres.
 
 ### Développement
 

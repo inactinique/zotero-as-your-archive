@@ -74,6 +74,7 @@ class Options:
     web: Path | None = None  # folder for the publishable page
     web_references: bool = False  # list individual references on that page
     label_model: str | None = None  # Ollama model asked to name the themes
+    label_language: str = labelling.DEFAULT_LANGUAGE  # language of the names it proposes
     ollama_url: str = labelling.DEFAULT_URL
 
 
@@ -82,6 +83,7 @@ class Label:
     text: str  # shown on the page: the automatic proposal, unless the user rewrote it
     auto: str  # the automatic proposal
     source: str  # where the proposal comes from: "keywords" or "ollama:<model>"
+    language: str = ""  # language asked of the model, when it made the proposal
 
 
 def run(opts: Options) -> Path:
@@ -203,8 +205,9 @@ def _labels(
     The automatic proposal is the group's most distinctive words, or a name
     given by a local language model when ``opts.label_model`` is set. Names
     already obtained from a model are reused as long as the themes are, so the
-    model is only called for groups it has not named yet. Whatever the
-    proposal, a label rewritten by the user in themes.json wins.
+    model is only called for groups it has not named yet in the requested
+    language. Whatever the proposal, a label rewritten by the user in
+    themes.json wins.
     """
     previous: dict[tuple[str, int], dict] = {}
     if path.is_file():
@@ -219,20 +222,23 @@ def _labels(
 
     wanted = f"ollama:{opts.label_model}" if opts.label_model else None
     groups = [("theme", t) for t in themes] + [("sub", s) for s in subthemes]
-    proposals: dict[tuple[str, int], tuple[str, str]] = {}
+    proposals: dict[tuple[str, int], tuple[str, str, str]] = {}
     unnamed = []
     for kind, group in groups:
         old = previous.get((kind, group.id), {})
         source = old.get("label_source", "keywords")
-        if wanted and source != wanted:
+        # Names obtained before the language could be chosen were asked for in French.
+        language = old.get("label_language", labelling.DEFAULT_LANGUAGE)
+        if wanted and (source, language) != (wanted, opts.label_language):
             unnamed.append((kind, group))
         elif source.startswith("ollama:") and old.get("auto_label"):
-            proposals[kind, group.id] = (old["auto_label"], source)
+            proposals[kind, group.id] = (old["auto_label"], source, language)
         else:
-            proposals[kind, group.id] = (group.auto_label, "keywords")
+            proposals[kind, group.id] = (group.auto_label, "keywords", "")
 
     for done, (kind, group) in enumerate(unnamed, start=1):
-        print(f"\r  libellés proposés par {opts.label_model} : {done}/{len(unnamed)}", end="", flush=True)
+        progress = f"libellés proposés par {opts.label_model} ({opts.label_language})"
+        print(f"\r  {progress} : {done}/{len(unnamed)}", end="", flush=True)
         if kind == "theme":
             context = dict(
                 parts=[subthemes[s] for s in group.children],
@@ -245,29 +251,32 @@ def _labels(
                 others=[subthemes[s] for s in parent.children if s != group.id],
             )
         titles = [items[i].title for i in group.exemplars]
-        name = labelling.propose(
-            opts.label_model, labelling.describe(group, titles, **context), opts.ollama_url
-        )
+        description = labelling.describe(group, titles, language=opts.label_language, **context)
+        name = labelling.propose(opts.label_model, description, opts.ollama_url, opts.label_language)
         # Without a usable answer, keep the words; the model is asked again next time.
-        proposals[kind, group.id] = (name, wanted) if name else (group.auto_label, "keywords")
+        proposals[kind, group.id] = (
+            (name, wanted, opts.label_language) if name else (group.auto_label, "keywords", "")
+        )
     if unnamed:
         print()
 
     labels = {}
-    for key, (auto, source) in proposals.items():
+    for key, (auto, source, language) in proposals.items():
         old = previous.get(key, {})
         edited = bool(old.get("label")) and old["label"] != old.get("auto_label")
-        labels[key] = Label(text=old["label"] if edited else auto, auto=auto, source=source)
+        labels[key] = Label(old["label"] if edited else auto, auto, source, language)
     return labels
 
 
 def _write_themes(path: Path, themes, subthemes, labels, items: list[Item]) -> None:
     def entry(kind: str, group) -> dict:
+        label = labels[kind, group.id]
         return {
             "id": group.id,
-            "label": labels[kind, group.id].text,
-            "auto_label": labels[kind, group.id].auto,
-            "label_source": labels[kind, group.id].source,
+            "label": label.text,
+            "auto_label": label.auto,
+            "label_source": label.source,
+            **({"label_language": label.language} if label.language else {}),
             "size": group.size,
             "keywords": group.keywords,
             "collections": [f"{name} ({n})" for name, n in group.collections],
@@ -279,7 +288,8 @@ def _write_themes(path: Path, themes, subthemes, labels, items: list[Item]) -> N
             "Pour renommer un thème ou un sous-thème, modifiez son champ « label » puis relancez "
             "« zotero-archive build ». Vos libellés sont conservés tant que les thèmes ne sont pas "
             "recalculés (option --refit ou changement de paramètres). « auto_label » est la "
-            "proposition automatique et « label_source » son origine : n’y touchez pas."
+            "proposition automatique, « label_source » son origine et « label_language » la "
+            "langue demandée au modèle : n’y touchez pas."
         ),
         "themes": [
             entry("theme", t) | {"subthemes": [entry("sub", subthemes[s]) for s in t.children]}
